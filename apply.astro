@@ -1,0 +1,156 @@
+---
+// src/pages/apply.astro
+//
+// Netlify Forms notes (same pattern as cohort-waitlist.astro):
+// - data-netlify="true" + hidden form-name input register this form with Netlify at
+//   build/deploy time, no backend needed.
+// - netlify-honeypot="bot-field" + the hidden bot-field input = spam protection.
+// - action="/application-received" sends successful submits to the confirmation page.
+// - Covers BOTH Cohort and Founder Fast-Track applications via the "track" dropdown,
+//   matching your approved single /apply page in the site structure.
+// - The reduced-price question only matters for Cohort applicants; it's shown to
+//   everyone for simplicity (Fast-Track applicants can just leave it on "No"), since
+//   Netlify Forms has no native conditional-field logic without added JS.
+// - Review happens manually in Systeme.io after CSV export/import — see the
+//   "Application Setup" section of the Systeme.io Setup Guide doc for that process.
+---
+
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Apply | Location Freedom</title>
+  <meta name="description" content="Apply for the Location Freedom Cohort or Founder Fast-Track." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ivory: #FAF6F0;
+      --indigo: #252039;
+      --purple: #76618F;
+      --gold: #C5A46D;
+      --body: #51485A;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--ivory);
+      color: var(--body);
+      font-family: 'Inter', -apple-system, sans-serif;
+      line-height: 1.6;
+    }
+    h1, h2 { font-family: 'Playfair Display', Georgia, serif; color: var(--indigo); margin: 0; }
+    .wrap { max-width: 640px; margin: 0 auto; padding: 64px 24px 96px; }
+    .eyebrow { color: var(--purple); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; font-size: 13px; margin-bottom: 12px; }
+    h1 { font-size: 36px; line-height: 1.2; margin-bottom: 16px; }
+    .subhead { font-size: 17px; margin-bottom: 32px; }
+    .card { background: #fff; border: 1px solid rgba(37,32,57,0.08); border-radius: 12px; padding: 32px; }
+    label { display: block; font-weight: 600; color: var(--indigo); margin-bottom: 6px; font-size: 14px; }
+    .hint { font-weight: 400; color: var(--purple); font-size: 13px; margin-top: -2px; margin-bottom: 8px; }
+    input[type="text"], input[type="email"], select, textarea {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid rgba(37,32,57,0.2);
+      border-radius: 8px;
+      font-size: 16px;
+      font-family: inherit;
+      margin-bottom: 20px;
+      background: var(--ivory);
+      color: var(--indigo);
+    }
+    textarea { min-height: 110px; resize: vertical; }
+    input:focus, select:focus, textarea:focus { outline: 2px solid var(--gold); outline-offset: 2px; }
+    fieldset { border: none; padding: 0; margin: 0 0 20px; }
+    legend { font-weight: 600; color: var(--indigo); font-size: 14px; margin-bottom: 8px; padding: 0; }
+    .radio-row { display: flex; gap: 20px; align-items: center; }
+    .radio-row label { display: flex; align-items: center; gap: 6px; font-weight: 400; color: var(--body); margin-bottom: 0; }
+    .radio-row input { width: auto; margin: 0; }
+    button {
+      width: 100%;
+      background: var(--indigo);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 14px 20px;
+      font-size: 16px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+    }
+    button:hover { background: #352c4f; }
+    .fine-print { font-size: 13px; color: var(--purple); margin-top: 14px; text-align: center; }
+    .honeypot { position: absolute; left: -9999px; }
+    .note { background: #fff; border-left: 3px solid var(--gold); padding: 16px 20px; border-radius: 6px; font-size: 14px; margin-bottom: 32px; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <div class="eyebrow">Location Freedom</div>
+    <h1>Apply</h1>
+    <p class="subhead">
+      Tell me a bit about you and what you're building. I read every application
+      myself and will follow up personally — there's no automated response here.
+    </p>
+
+    <div class="note">
+      Applying doesn't guarantee a place. If it's not the right fit right now, I'll tell
+      you honestly and may point you toward a better next step.
+    </div>
+
+    <div class="card">
+      <form
+        name="apply"
+        method="POST"
+        data-netlify="true"
+        netlify-honeypot="bot-field"
+        action="/application-received"
+      >
+        <input type="hidden" name="form-name" value="apply" />
+        <p class="honeypot">
+          <label>Don't fill this out if you're human: <input name="bot-field" /></label>
+        </p>
+
+        <label for="name">Full name</label>
+        <input type="text" id="name" name="name" required />
+
+        <label for="email">Email address</label>
+        <input type="email" id="email" name="email" required />
+
+        <label for="track">Which are you applying for?</label>
+        <select id="track" name="track" required>
+          <option value="">Select one</option>
+          <option value="Cohort ($497)">Location Freedom Cohort — $497</option>
+          <option value="Founder Fast-Track ($1,497)">Founder Fast-Track — $1,497</option>
+        </select>
+
+        <label for="pathway">Which best describes your business direction?</label>
+        <select id="pathway" name="pathway" required>
+          <option value="">Select one</option>
+          <option value="B2B">B2B — business-to-business services</option>
+          <option value="B2C">B2C — business-to-consumer services</option>
+          <option value="Hybrid">Hybrid</option>
+          <option value="Undecided">Still undecided</option>
+        </select>
+
+        <label for="about">Tell me about your background and what you're hoping to get out of this</label>
+        <textarea id="about" name="about" required></textarea>
+
+        <fieldset>
+          <legend>Would you like to be considered for a reduced-price Cohort place?</legend>
+          <div class="hint">Only relevant if you selected the Cohort above. A small number of reduced-price places may be available.</div>
+          <div class="radio-row">
+            <label><input type="radio" name="reduced_price" value="Yes" /> Yes</label>
+            <label><input type="radio" name="reduced_price" value="No" checked /> No</label>
+          </div>
+        </fieldset>
+
+        <button type="submit">Submit Application</button>
+        <p class="fine-print">
+          You'll hear from me personally after I've reviewed your application.
+        </p>
+      </form>
+    </div>
+  </main>
+</body>
+</html>
