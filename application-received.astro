@@ -1,0 +1,40 @@
+---
+// src/pages/application-received.astro
+// Netlify redirects here after a successful /apply submission.
+---
+
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Application Received | Location Freedom</title>
+  <meta name="robots" content="noindex" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root { --ivory: #FAF6F0; --indigo: #252039; --purple: #76618F; --body: #51485A; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--ivory); color: var(--body); font-family: 'Inter', -apple-system, sans-serif; line-height: 1.6; }
+    h1 { font-family: 'Playfair Display', Georgia, serif; color: var(--indigo); font-size: 34px; margin-bottom: 16px; }
+    .wrap { max-width: 540px; margin: 0 auto; padding: 96px 24px; text-align: center; }
+    a { color: var(--purple); }
+    .back { display: inline-block; margin-top: 32px; color: var(--indigo); font-weight: 600; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <h1>Thank you for applying.</h1>
+    <p>
+      I read every application myself. You'll hear back from me personally — there's
+      no automated acceptance or rejection here, so please give it a little time.
+    </p>
+    <p>
+      If you're approved, I'll follow up with next steps and a private checkout link.
+      If it's not the right fit right now, I'll tell you honestly and, where I can,
+      point you toward something that might help instead.
+    </p>
+    <a class="back" href="/">← Back to Location Freedom</a>
+  </main>
+</body>
+</html>
