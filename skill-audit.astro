@@ -1,0 +1,631 @@
+---
+// src/pages/skill-audit.astro
+//
+// The Location Freedom Skill Audit — a 6-screen interactive assessment.
+// Vanilla TypeScript (no React/Vue added — not in the approved stack), using
+// Astro's native <script> support. Imports the data/scoring modules directly;
+// Astro bundles and type-checks them at build time.
+//
+// Screens: welcome -> assessment (6 sections x 4 Qs) -> personalization ->
+// review -> results -> next-steps (results + next-steps are one screen here,
+// per Part 9's dashboard spec, with "Next Location Freedom Step" as its own
+// section G within it).
+//
+// Persistence: localStorage key "lf-skill-audit-v1", autosaved on every answer.
+// Export: Print/Save-as-PDF via window.print() + a print stylesheet (zero new
+// dependencies); a "Download answers as JSON" backup export.
+// Email: a SEPARATE small Netlify form on the results screen, optional,
+// clearly not wired to actually send an email yet (see the setup-guide doc).
+---
+
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Location Freedom Skill Audit</title>
+  <meta name="description" content="Discover the professional skills you already possess and how they could translate into a service business." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ivory: #FAF6F0;
+      --indigo: #252039;
+      --purple: #76618F;
+      --gold: #C5A46D;
+      --body: #51485A;
+      --line: rgba(37,32,57,0.12);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--ivory);
+      color: var(--body);
+      font-family: 'Inter', -apple-system, sans-serif;
+      line-height: 1.6;
+    }
+    h1, h2, h3 { font-family: 'Playfair Display', Georgia, serif; color: var(--indigo); margin: 0; }
+    .wrap { max-width: 720px; margin: 0 auto; padding: 48px 24px 96px; }
+    .eyebrow { color: var(--purple); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; font-size: 13px; margin-bottom: 10px; }
+    .card { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 32px; margin-bottom: 24px; }
+    button, .btn {
+      background: var(--indigo); color: #fff; border: none; border-radius: 8px;
+      padding: 12px 22px; font-size: 15px; font-weight: 600; font-family: inherit;
+      cursor: pointer; display: inline-block; text-decoration: none;
+    }
+    button.secondary, .btn.secondary { background: transparent; color: var(--indigo); border: 1.5px solid var(--indigo); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    button:hover:not(:disabled) { background: #352c4f; }
+    .btn-row { display: flex; justify-content: space-between; gap: 12px; margin-top: 24px; flex-wrap: wrap; }
+    .progress-track { height: 6px; background: var(--line); border-radius: 4px; overflow: hidden; margin-bottom: 8px; }
+    .progress-fill { height: 100%; background: var(--gold); transition: width 0.2s; }
+    .progress-label { font-size: 13px; color: var(--purple); margin-bottom: 24px; }
+    fieldset { border: none; padding: 0; margin: 0 0 28px; }
+    legend { font-weight: 600; color: var(--indigo); font-size: 16px; margin-bottom: 14px; padding: 0; line-height: 1.4; }
+    .scale { display: flex; flex-direction: column; gap: 8px; }
+    .scale label {
+      display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+      border: 1px solid var(--line); border-radius: 8px; cursor: pointer; font-size: 14px;
+    }
+    .scale label:has(input:checked) { border-color: var(--gold); background: #FBF4E6; }
+    .scale input { width: auto; accent-color: var(--indigo); }
+    .checkbox-grid, .radio-grid { display: grid; gap: 8px; }
+    .checkbox-grid label, .radio-grid label {
+      display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+      border: 1px solid var(--line); border-radius: 8px; font-size: 14px; cursor: pointer;
+    }
+    .checkbox-grid label:has(input:checked), .radio-grid label:has(input:checked) { border-color: var(--gold); background: #FBF4E6; }
+    input[type="text"], input[type="email"], textarea {
+      width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px;
+      font-size: 15px; font-family: inherit; background: var(--ivory); color: var(--indigo);
+    }
+    .bar-row { margin-bottom: 18px; }
+    .bar-label { display: flex; justify-content: space-between; font-size: 14px; font-weight: 600; color: var(--indigo); margin-bottom: 4px; }
+    .bar-track { height: 10px; background: var(--line); border-radius: 6px; overflow: hidden; }
+    .bar-fill { height: 100%; background: var(--purple); }
+    .band-badge {
+      display: inline-block; background: var(--indigo); color: #fff; padding: 6px 16px;
+      border-radius: 999px; font-weight: 600; font-size: 14px; margin-bottom: 10px;
+    }
+    .opp-card, .step-card { border-left: 3px solid var(--gold); background: #FBF4E6; padding: 16px 18px; border-radius: 6px; margin-bottom: 14px; }
+    .opp-card h4, .step-card h4 { margin: 0 0 6px; font-size: 15px; color: var(--indigo); font-family: 'Inter', sans-serif; }
+    .opp-card dl { margin: 8px 0 0; font-size: 13.5px; }
+    .opp-card dt { font-weight: 600; color: var(--purple); margin-top: 6px; }
+    .opp-card dd { margin: 0; }
+    .unanswered-note { background: #fff3e0; border: 1px solid #e8c896; padding: 14px 18px; border-radius: 8px; font-size: 14px; margin-bottom: 20px; }
+    .fine-print { font-size: 12.5px; color: var(--purple); margin-top: 8px; }
+    .screen { display: none; }
+    .screen.active { display: block; }
+    @media print {
+      button, .btn-row, .no-print { display: none !important; }
+      body { background: #fff; }
+      .card { border: none; box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <div class="eyebrow">Location Freedom Skill Audit</div>
+
+    <!-- SCREEN 1: WELCOME -->
+    <section class="screen active" id="screen-welcome">
+      <div class="card">
+        <h1>Your Expertise Is Your Exit Strategy.</h1>
+        <p>Discover the professional skills you already possess, how they could translate into a service business, and what you need to develop to bring your expertise to market.</p>
+        <p style="font-size:14px;color:var(--purple)">24 quick questions &middot; about 7&ndash;10 minutes &middot; a personalized results dashboard, printable or saved for later.</p>
+        <p style="font-size:13px;color:var(--purple)">This is a discovery and readiness tool — not a personality test, employment assessment, or guarantee of business success.</p>
+        <button id="btn-start">Discover My Location Freedom Opportunities</button>
+      </div>
+    </section>
+
+    <!-- SCREEN 2: SCORED ASSESSMENT -->
+    <section class="screen" id="screen-assessment">
+      <div class="progress-track"><div class="progress-fill" id="assess-progress-fill"></div></div>
+      <div class="progress-label" id="assess-progress-label"></div>
+      <div class="card">
+        <h2 id="assess-dimension-name"></h2>
+        <p style="font-size:14px;color:var(--purple)" id="assess-dimension-purpose"></p>
+        <div id="assess-questions"></div>
+      </div>
+      <div class="btn-row">
+        <button class="secondary" id="btn-assess-back">Back</button>
+        <button id="btn-assess-next">Next</button>
+      </div>
+    </section>
+
+    <!-- SCREEN 3: PERSONALIZATION -->
+    <section class="screen" id="screen-personalization">
+      <div class="card">
+        <h2>A little more about you</h2>
+        <p style="font-size:14px;color:var(--purple)">These four questions aren't scored — they personalize your results.</p>
+
+        <fieldset>
+          <legend>Which areas best describe your experience? (select all that apply)</legend>
+          <div class="checkbox-grid" id="p1-options"></div>
+          <div id="p1-other-wrap" style="display:none;margin-top:10px;">
+            <input type="text" id="p1-other-text" placeholder="Tell us more" />
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Who are you most interested in serving?</legend>
+          <div class="radio-grid" id="p2-options"></div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Which best describes where you are today?</legend>
+          <div class="radio-grid" id="p3-options"></div>
+        </fieldset>
+
+        <fieldset>
+          <legend>What would you most like help accomplishing?</legend>
+          <div class="radio-grid" id="p4-options"></div>
+        </fieldset>
+      </div>
+      <div class="btn-row">
+        <button class="secondary" id="btn-personal-back">Back</button>
+        <button id="btn-personal-next">Next: Review</button>
+      </div>
+    </section>
+
+    <!-- SCREEN 4: REVIEW -->
+    <section class="screen" id="screen-review">
+      <div class="card">
+        <h2>Review your answers</h2>
+        <p style="font-size:14px;color:var(--purple)">Everything looks editable below — go back to any section to change an answer before you see your results.</p>
+        <div id="review-summary"></div>
+      </div>
+      <div class="btn-row">
+        <button class="secondary" id="btn-review-back">Back</button>
+        <button id="btn-review-submit">See My Results</button>
+      </div>
+    </section>
+
+    <!-- SCREEN 5: RESULTS -->
+    <section class="screen" id="screen-results">
+      <div class="card">
+        <h1>Your Location Freedom Skill Audit Results</h1>
+        <p>Your experience holds possibilities. Here's what your responses suggest about your strengths, where you may need more clarity, and what you can do next.</p>
+      </div>
+
+      <div class="card">
+        <span class="band-badge" id="result-band"></span>
+        <p id="result-score-line"></p>
+        <p id="result-message"></p>
+      </div>
+
+      <div class="card">
+        <h3>Your six dimensions</h3>
+        <div id="dimension-bars"></div>
+      </div>
+
+      <div class="card">
+        <h3>Your existing strengths</h3>
+        <p style="font-size:13px;color:var(--purple)">Self-reported — these reflect how you answered, not an independently verified skill assessment.</p>
+        <div id="strengths-list"></div>
+      </div>
+
+      <div class="card">
+        <h3>Your next development priorities</h3>
+        <div id="priorities-list"></div>
+      </div>
+
+      <div class="card">
+        <h3>Service opportunities worth exploring</h3>
+        <p style="font-size:13px;color:var(--purple)">Starting hypotheses to validate with real potential customers — not guaranteed business ideas.</p>
+        <div id="opportunities-list"></div>
+      </div>
+
+      <div class="card">
+        <h3>Your three-step action plan</h3>
+        <div id="action-plan"></div>
+      </div>
+
+      <div class="card">
+        <h3>Your next Location Freedom step</h3>
+        <div id="next-resource"></div>
+      </div>
+
+      <div class="card no-print">
+        <h3>Save your results</h3>
+        <div class="btn-row" style="margin-top:0">
+          <button id="btn-print">Print / Save as PDF</button>
+          <button class="secondary" id="btn-export-json">Download answers (JSON backup)</button>
+          <button class="secondary" id="btn-retake">Retake assessment</button>
+        </div>
+
+        <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--line)">
+          <h4 style="font-family:'Inter',sans-serif;color:var(--indigo);margin:0 0 8px">Want a copy by email?</h4>
+          <form name="skill-audit-email" method="POST" data-netlify="true" netlify-honeypot="bot-field" id="email-form">
+            <input type="hidden" name="form-name" value="skill-audit-email" />
+            <p style="position:absolute;left:-9999px"><label>Don't fill this out if you're human: <input name="bot-field" /></label></p>
+            <input type="email" name="email" placeholder="you@example.com" required style="margin-bottom:10px" />
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:400;margin-bottom:10px">
+              <input type="checkbox" name="marketing_consent" value="yes" style="width:auto" />
+              Also send me occasional emails from Location Freedom
+            </label>
+            <button type="submit" class="secondary">Save my email</button>
+            <p class="fine-print">We'll add you to our list, but we don't yet have automatic email delivery of your full results set up — please print or download your results above for now.</p>
+          </form>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module">
+    import {
+      DIMENSIONS, QUESTIONS, RESPONSE_SCALE, BACKGROUND_OPTIONS,
+      CUSTOMER_PREFERENCE_OPTIONS, BUSINESS_STAGE_OPTIONS, PRIMARY_GOAL_OPTIONS,
+    } from "../lib/skillAudit/data.ts";
+    import {
+      calculateAllDimensionScores, calculateOverallScore, rankStrengths,
+      rankPriorities, selectOpportunities, buildActionPlan, recommendNextResource,
+      FAST_TRACK_RESOURCE, resultBandFor,
+    } from "../lib/skillAudit/scoring.ts";
+
+    const STORAGE_KEY = "lf-skill-audit-v1";
+
+    const state = loadState() ?? {
+      screen: "welcome",
+      sectionIndex: 0,
+      answers: {},
+      personalization: { background: [], backgroundOther: "", customerPreference: null, businessStage: null, primaryGoal: null },
+    };
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        return raw ? JSON.parse(raw) : null;
+      } catch {
+        return null;
+      }
+    }
+    function saveState() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } catch {
+        // storage unavailable (private mode, quota) — fail silently, in-memory state still works
+      }
+    }
+
+    function showScreen(id) {
+      document.querySelectorAll(".screen").forEach((el) => el.classList.remove("active"));
+      document.getElementById(id).classList.add("active");
+      window.scrollTo(0, 0);
+    }
+
+    // ---------- Screen 1: Welcome ----------
+    document.getElementById("btn-start").addEventListener("click", () => {
+      state.screen = "assessment";
+      saveState();
+      renderAssessmentSection();
+      showScreen("screen-assessment");
+    });
+
+    // ---------- Screen 2: Assessment ----------
+    function renderAssessmentSection() {
+      const dim = DIMENSIONS[state.sectionIndex];
+      const qs = QUESTIONS.filter((q) => q.dimensionId === dim.id).sort((a, b) => a.order - b.order);
+
+      document.getElementById("assess-dimension-name").textContent = `${state.sectionIndex + 1}. ${dim.name}`;
+      document.getElementById("assess-dimension-purpose").textContent = dim.purpose;
+      document.getElementById("assess-progress-fill").style.width = `${((state.sectionIndex) / DIMENSIONS.length) * 100}%`;
+      document.getElementById("assess-progress-label").textContent = `Section ${state.sectionIndex + 1} of ${DIMENSIONS.length}`;
+
+      const container = document.getElementById("assess-questions");
+      container.innerHTML = "";
+      qs.forEach((q) => {
+        const fs = document.createElement("fieldset");
+        const legend = document.createElement("legend");
+        legend.textContent = q.text;
+        fs.appendChild(legend);
+        const scale = document.createElement("div");
+        scale.className = "scale";
+        scale.setAttribute("role", "radiogroup");
+        scale.setAttribute("aria-label", q.text);
+        RESPONSE_SCALE.forEach((opt) => {
+          const label = document.createElement("label");
+          const input = document.createElement("input");
+          input.type = "radio";
+          input.name = q.id;
+          input.value = String(opt.value);
+          input.checked = state.answers[q.id] === opt.value;
+          input.addEventListener("change", () => {
+            state.answers[q.id] = opt.value;
+            saveState();
+          });
+          label.appendChild(input);
+          label.append(` ${opt.value} — ${opt.label}`);
+          scale.appendChild(label);
+        });
+        // "Not sure" option
+        const notSureLabel = document.createElement("label");
+        const notSureInput = document.createElement("input");
+        notSureInput.type = "radio";
+        notSureInput.name = q.id;
+        notSureInput.value = "not-sure";
+        notSureInput.checked = state.answers[q.id] === null && state.answers.hasOwnProperty(q.id);
+        notSureInput.addEventListener("change", () => {
+          state.answers[q.id] = null;
+          saveState();
+        });
+        notSureLabel.appendChild(notSureInput);
+        notSureLabel.append(" Not sure");
+        scale.appendChild(notSureLabel);
+
+        fs.appendChild(scale);
+        container.appendChild(fs);
+      });
+    }
+
+    document.getElementById("btn-assess-back").addEventListener("click", () => {
+      if (state.sectionIndex === 0) {
+        state.screen = "welcome";
+        saveState();
+        showScreen("screen-welcome");
+      } else {
+        state.sectionIndex -= 1;
+        saveState();
+        renderAssessmentSection();
+      }
+    });
+    document.getElementById("btn-assess-next").addEventListener("click", () => {
+      if (state.sectionIndex < DIMENSIONS.length - 1) {
+        state.sectionIndex += 1;
+        saveState();
+        renderAssessmentSection();
+      } else {
+        state.screen = "personalization";
+        saveState();
+        renderPersonalization();
+        showScreen("screen-personalization");
+      }
+    });
+
+    // ---------- Screen 3: Personalization ----------
+    function renderPersonalization() {
+      const p1 = document.getElementById("p1-options");
+      p1.innerHTML = "";
+      BACKGROUND_OPTIONS.forEach((opt) => {
+        const label = document.createElement("label");
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.value = opt;
+        input.checked = state.personalization.background.includes(opt);
+        input.addEventListener("change", () => {
+          const set = new Set(state.personalization.background);
+          input.checked ? set.add(opt) : set.delete(opt);
+          state.personalization.background = [...set];
+          document.getElementById("p1-other-wrap").style.display = set.has("Other") ? "block" : "none";
+          saveState();
+        });
+        label.appendChild(input);
+        label.append(" " + opt);
+        p1.appendChild(label);
+      });
+      document.getElementById("p1-other-wrap").style.display = state.personalization.background.includes("Other") ? "block" : "none";
+      const otherInput = document.getElementById("p1-other-text");
+      otherInput.value = state.personalization.backgroundOther || "";
+      otherInput.addEventListener("input", () => {
+        state.personalization.backgroundOther = otherInput.value;
+        saveState();
+      });
+
+      renderRadioGroup("p2-options", "p2", CUSTOMER_PREFERENCE_OPTIONS.map(o => ({ value: o.value, label: o.label })), state.personalization.customerPreference, (v) => {
+        state.personalization.customerPreference = v;
+        saveState();
+      });
+      renderRadioGroup("p3-options", "p3", BUSINESS_STAGE_OPTIONS.map(o => ({ value: o, label: o })), state.personalization.businessStage, (v) => {
+        state.personalization.businessStage = v;
+        saveState();
+      });
+      renderRadioGroup("p4-options", "p4", PRIMARY_GOAL_OPTIONS.map(o => ({ value: o, label: o })), state.personalization.primaryGoal, (v) => {
+        state.personalization.primaryGoal = v;
+        saveState();
+      });
+    }
+
+    function renderRadioGroup(containerId, name, options, selected, onChange) {
+      const container = document.getElementById(containerId);
+      container.innerHTML = "";
+      container.setAttribute("role", "radiogroup");
+      options.forEach((opt) => {
+        const label = document.createElement("label");
+        const input = document.createElement("input");
+        input.type = "radio";
+        input.name = name;
+        input.value = opt.value;
+        input.checked = selected === opt.value;
+        input.addEventListener("change", () => onChange(opt.value));
+        label.appendChild(input);
+        label.append(" " + opt.label);
+        container.appendChild(label);
+      });
+    }
+
+    document.getElementById("btn-personal-back").addEventListener("click", () => {
+      state.screen = "assessment";
+      state.sectionIndex = DIMENSIONS.length - 1;
+      saveState();
+      renderAssessmentSection();
+      showScreen("screen-assessment");
+    });
+    document.getElementById("btn-personal-next").addEventListener("click", () => {
+      state.screen = "review";
+      saveState();
+      renderReview();
+      showScreen("screen-review");
+    });
+
+    // ---------- Screen 4: Review ----------
+    function renderReview() {
+      const container = document.getElementById("review-summary");
+      container.innerHTML = "";
+      const overall = calculateOverallScore(state.answers);
+
+      if (!overall.complete) {
+        const note = document.createElement("div");
+        note.className = "unanswered-note";
+        note.textContent = `You have ${overall.unansweredIds.length} unanswered question(s): ${overall.unansweredIds.join(", ")}. Go back and complete them to see your full results, or continue to view a provisional summary.`;
+        container.appendChild(note);
+      }
+
+      DIMENSIONS.forEach((dim) => {
+        const qs = QUESTIONS.filter((q) => q.dimensionId === dim.id).sort((a,b)=>a.order-b.order);
+        const section = document.createElement("div");
+        section.style.marginBottom = "16px";
+        const h = document.createElement("h4");
+        h.style.margin = "0 0 6px";
+        h.style.fontFamily = "'Inter', sans-serif";
+        h.style.color = "var(--indigo)";
+        h.textContent = dim.name;
+        section.appendChild(h);
+        qs.forEach((q) => {
+          const v = state.answers[q.id];
+          const p = document.createElement("p");
+          p.style.fontSize = "13.5px";
+          p.style.margin = "2px 0";
+          p.textContent = `${q.text} — ${v == null ? "Not answered" : v}`;
+          section.appendChild(p);
+        });
+        container.appendChild(section);
+      });
+    }
+
+    document.getElementById("btn-review-back").addEventListener("click", () => {
+      state.screen = "personalization";
+      saveState();
+      renderPersonalization();
+      showScreen("screen-personalization");
+    });
+    document.getElementById("btn-review-submit").addEventListener("click", () => {
+      const overall = calculateOverallScore(state.answers);
+      if (!overall.complete) {
+        alert(`Please answer all questions first. Still missing: ${overall.unansweredIds.join(", ")}`);
+        return;
+      }
+      state.screen = "results";
+      saveState();
+      renderResults();
+      showScreen("screen-results");
+    });
+
+    // ---------- Screen 5: Results ----------
+    function renderResults() {
+      const dimResults = calculateAllDimensionScores(state.answers);
+      const overall = calculateOverallScore(state.answers);
+      const band = resultBandFor(overall.percentage);
+
+      document.getElementById("result-band").textContent = band.label;
+      document.getElementById("result-score-line").textContent = `Overall score: ${Math.round(overall.percentage)}%`;
+      document.getElementById("result-message").textContent = band.message;
+
+      const barsEl = document.getElementById("dimension-bars");
+      barsEl.innerHTML = "";
+      dimResults.forEach((r) => {
+        const dim = DIMENSIONS.find((d) => d.id === r.dimensionId);
+        const row = document.createElement("div");
+        row.className = "bar-row";
+        const pct = Math.round(r.percentage ?? 0);
+        row.innerHTML = `
+          <div class="bar-label"><span>${dim.name}</span><span>${pct}%</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
+        `;
+        barsEl.appendChild(row);
+      });
+
+      const strengths = rankStrengths(dimResults, 2);
+      const strengthsEl = document.getElementById("strengths-list");
+      strengthsEl.innerHTML = "";
+      strengths.forEach((r) => {
+        const dim = DIMENSIONS.find((d) => d.id === r.dimensionId);
+        const card = document.createElement("div");
+        card.className = "step-card";
+        card.innerHTML = `<h4>${dim.name} — ${Math.round(r.percentage)}%</h4><p style="margin:0;font-size:13.5px">${dim.purpose}</p>`;
+        strengthsEl.appendChild(card);
+      });
+
+      const priorities = rankPriorities(dimResults, 2);
+      const prioritiesEl = document.getElementById("priorities-list");
+      prioritiesEl.innerHTML = "";
+      priorities.forEach((r) => {
+        const dim = DIMENSIONS.find((d) => d.id === r.dimensionId);
+        const card = document.createElement("div");
+        card.className = "step-card";
+        card.innerHTML = `<h4>${dim.name} — ${Math.round(r.percentage)}%</h4><p style="margin:0;font-size:13.5px">${dim.recommendedAction}</p>`;
+        prioritiesEl.appendChild(card);
+      });
+
+      const opportunities = selectOpportunities(state.personalization, 3);
+      const oppEl = document.getElementById("opportunities-list");
+      oppEl.innerHTML = "";
+      opportunities.forEach((opp) => {
+        const card = document.createElement("div");
+        card.className = "opp-card";
+        card.innerHTML = `
+          <h4>${opp.direction}</h4>
+          <dl>
+            <dt>Relevant experience</dt><dd>${opp.relevantExperience}</dd>
+            <dt>Potential customer</dt><dd>${opp.potentialCustomer}</dd>
+            <dt>Problem</dt><dd>${opp.problem}</dd>
+            <dt>Possible service</dt><dd>${opp.possibleService}</dd>
+            <dt>Example deliverable</dt><dd>${opp.exampleDeliverable}</dd>
+            <dt>First validation step</dt><dd>${opp.firstValidationStep}</dd>
+          </dl>
+          <p class="fine-print">A starting hypothesis to validate — not a guaranteed business opportunity.</p>
+        `;
+        oppEl.appendChild(card);
+      });
+
+      const plan = buildActionPlan(dimResults, state.personalization);
+      const planEl = document.getElementById("action-plan");
+      planEl.innerHTML = `
+        <div class="step-card"><h4>Step 1 — Strengthen the Foundation</h4><p style="margin:0">${plan.step1}</p></div>
+        <div class="step-card"><h4>Step 2 — Apply the Skill</h4><p style="margin:0">${plan.step2}</p></div>
+        <div class="step-card"><h4>Step 3 — Move Toward the Market</h4><p style="margin:0">${plan.step3}</p></div>
+      `;
+
+      const nextResource = recommendNextResource(state.personalization, priorities);
+      const nextEl = document.getElementById("next-resource");
+      const productLinks = { academy: "/academy", cohort: "/cohort", "fast-track": "/fast-track" };
+      nextEl.innerHTML = `
+        <div class="step-card">
+          <h4>${nextResource.cta}</h4>
+          <p style="margin:0 0 10px">${nextResource.supportingText}</p>
+          <a class="btn secondary" href="${productLinks[nextResource.product]}">${nextResource.cta}</a>
+        </div>
+        <div class="step-card">
+          <h4>${FAST_TRACK_RESOURCE.cta}</h4>
+          <p style="margin:0 0 10px">${FAST_TRACK_RESOURCE.supportingText}</p>
+          <a class="btn secondary" href="/fast-track">${FAST_TRACK_RESOURCE.cta}</a>
+        </div>
+      `;
+    }
+
+    document.getElementById("btn-print").addEventListener("click", () => window.print());
+    document.getElementById("btn-export-json").addEventListener("click", () => {
+      const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "location-freedom-skill-audit.json";
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+    document.getElementById("btn-retake").addEventListener("click", () => {
+      if (!confirm("This clears your saved answers. Continue?")) return;
+      localStorage.removeItem(STORAGE_KEY);
+      location.reload();
+    });
+
+    // ---------- Resume where the user left off ----------
+    (function resume() {
+      if (state.screen === "assessment") { renderAssessmentSection(); showScreen("screen-assessment"); }
+      else if (state.screen === "personalization") { renderPersonalization(); showScreen("screen-personalization"); }
+      else if (state.screen === "review") { renderReview(); showScreen("screen-review"); }
+      else if (state.screen === "results") { renderResults(); showScreen("screen-results"); }
+      else { showScreen("screen-welcome"); }
+    })();
+  </script>
+</body>
+</html>
